@@ -1403,10 +1403,17 @@ class VitsModel(VitsPreTrainedModel):
             input_padding_mask = torch.ones_like(input_ids).unsqueeze(-1).float()
 
         if self.config.num_speakers > 1 and speaker_id is not None:
-            if not 0 <= speaker_id < self.config.num_speakers:
-                raise ValueError(f"Set `speaker_id` in the range 0-{self.config.num_speakers - 1}.")
-            if isinstance(speaker_id, int):
-                speaker_id = torch.full(size=(1,), fill_value=speaker_id, device=self.device)
+            if isinstance(speaker_id, torch.Tensor):
+                if torch.min(speaker_id) < 0 or torch.max(speaker_id) >= self.config.num_speakers:
+                    raise ValueError(
+                        f"Set `speaker_id` in the range 0-{self.config.num_speakers - 1}."
+                        f" Got {torch.min(speaker_id)} and {torch.max(speaker_id)}."
+                    )
+            else:
+                if not 0 <= speaker_id < self.config.num_speakers:
+                    raise ValueError(f"Set `speaker_id` in the range 0-{self.config.num_speakers - 1}.")
+                if isinstance(speaker_id, int):
+                    speaker_id = torch.full(size=(1,), fill_value=speaker_id, device=self.device)
             speaker_embeddings = self.embed_speaker(speaker_id).unsqueeze(-1)
         else:
             speaker_embeddings = None

@@ -21,10 +21,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ...tokenization_utils import PreTrainedTokenizer
 from ...utils import is_phonemizer_available, logging
+from phonemizer.backend import EspeakBackend
+from phonemizer.separator import Separator
 
 
-if is_phonemizer_available():
-    import phonemizer
+# if is_phonemizer_available():
+#     import phonemizer
 
 
 logger = logging.get_logger(__name__)
@@ -100,6 +102,13 @@ class VitsTokenizer(PreTrainedTokenizer):
             is_uroman=is_uroman,
             **kwargs,
         )
+
+        self.phonemizer = EspeakBackend(
+                        language='en-us',
+                        preserve_punctuation=True,
+                        words_mismatch='ignore',
+                        with_stress=True,
+                    )
 
     @property
     def vocab_size(self):
@@ -181,15 +190,11 @@ class VitsTokenizer(PreTrainedTokenizer):
         if self.phonemize:
             if not is_phonemizer_available():
                 raise ImportError("Please install the `phonemizer` Python package to use this tokenizer.")
+            
+            filtered_text = self.phonemizer.phonemize(
+                [filtered_text],
+                strip=True)[0]
 
-            filtered_text = phonemizer.phonemize(
-                filtered_text,
-                language="en-us",
-                backend="espeak",
-                strip=True,
-                preserve_punctuation=True,
-                with_stress=True,
-            )
             filtered_text = re.sub(r"\s+", " ", filtered_text)
         elif normalize:
             # strip any chars outside of the vocab (punctuation)
