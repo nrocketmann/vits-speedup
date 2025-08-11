@@ -155,6 +155,7 @@ class SeamlessM4Tv2TextToUnitOutput(ModelOutput):
     encoder_hidden_states: Optional[tuple[torch.FloatTensor]] = None
     encoder_attentions: Optional[tuple[torch.FloatTensor]] = None
     loss: Optional[torch.FloatTensor] = None
+    durations: Optional[torch.Tensor] = None
 
 
 ############ UTILS ################
@@ -2187,6 +2188,7 @@ class SeamlessM4Tv2TextToUnitModel(SeamlessM4Tv2PreTrainedModel):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
+            durations=decoder_outputs.durations,
         )
 
 
@@ -2316,6 +2318,7 @@ class SeamlessM4Tv2TextToUnitForConditionalGeneration(SeamlessM4Tv2PreTrainedMod
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
             loss=masked_lm_loss,
+            durations=outputs.durations,
         )
 
     # Copied from transformers.models.seamless_m4t.modeling_seamless_m4t.SeamlessM4TTextToUnitForConditionalGeneration._tie_weights
