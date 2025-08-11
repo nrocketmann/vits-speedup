@@ -123,6 +123,7 @@ class SeamlessM4Tv2TextToUnitDecoderOutput(ModelOutput):
     hidden_states: Optional[tuple[torch.FloatTensor]] = None
     attentions: Optional[tuple[torch.FloatTensor]] = None
     padding_mask: Optional[torch.Tensor] = None
+    durations: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -2102,6 +2103,7 @@ class SeamlessM4Tv2TextToUnitDecoder(SeamlessM4Tv2PreTrainedModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
             padding_mask=padding_mask,
+            durations=dur_out,
         )
 
 
