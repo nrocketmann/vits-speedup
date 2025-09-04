@@ -59,6 +59,7 @@ class VitsModelOutput(ModelOutput):
     spectrogram: Optional[tuple[torch.FloatTensor]] = None
     hidden_states: Optional[tuple[torch.FloatTensor]] = None
     attentions: Optional[tuple[torch.FloatTensor]] = None
+    inference_cache: dict = None
 
 
 @dataclass
@@ -1286,6 +1287,7 @@ class VitsModel(VitsPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         labels: Optional[torch.FloatTensor] = None,
+        inference_cache: dict = None
     ) -> Union[tuple[Any], VitsModelOutput]:
         r"""
         speaker_id (`int`, *optional*):
@@ -1313,6 +1315,9 @@ class VitsModel(VitsPreTrainedModel):
         torch.Size([1, 45824])
         ```
         """
+        if inference_cache is None:
+            inference_cache = {}
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1345,6 +1350,15 @@ class VitsModel(VitsPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
+        # swap text encoder results
+        if 'text_encoder_output' in inference_cache:
+            text_encoder_output['last_hidden_state'][:,:inference_cache['text_encoder_output']['last_hidden_state'].shape[1],:] = inference_cache['text_encoder_output']['last_hidden_state']
+            text_encoder_output['prior_means'][:,:inference_cache['text_encoder_output']['prior_means'].shape[1],:] = inference_cache['text_encoder_output']['prior_means']
+            text_encoder_output['prior_log_variances'][:,:inference_cache['text_encoder_output']['prior_log_variances'].shape[1],:] = inference_cache['text_encoder_output']['prior_log_variances']
+        inference_cache['text_encoder_output'] = text_encoder_output
+
+
         hidden_states = text_encoder_output[0] if not return_dict else text_encoder_output.last_hidden_state
         hidden_states = hidden_states.transpose(1, 2)
         input_padding_mask = input_padding_mask.transpose(1, 2)
@@ -1361,6 +1375,11 @@ class VitsModel(VitsPreTrainedModel):
             )
         else:
             log_duration = self.duration_predictor(hidden_states, input_padding_mask, speaker_embeddings)
+
+        if 'log_duration' in inference_cache:
+            log_duration[:,:,:inference_cache['log_duration'].shape[2]] = inference_cache['log_duration']
+        inference_cache['log_duration'] = log_duration
+
 
         length_scale = 1.0 / self.speaking_rate
         duration = torch.ceil(torch.exp(log_duration) * input_padding_mask * length_scale)
@@ -1386,9 +1405,16 @@ class VitsModel(VitsPreTrainedModel):
         prior_log_variances = torch.matmul(attn.squeeze(1), prior_log_variances).transpose(1, 2)
 
         prior_latents = prior_means + torch.randn_like(prior_means) * torch.exp(prior_log_variances) * self.noise_scale
+
         latents = self.flow(prior_latents, output_padding_mask, speaker_embeddings, reverse=True)
 
+
         spectrogram = latents * output_padding_mask
+
+        if 'spectrogram' in inference_cache:
+            spectrogram[:,:,:inference_cache['spectrogram'].shape[2]] = inference_cache['spectrogram']
+        inference_cache['spectrogram'] = spectrogram
+
         waveform = self.decoder(spectrogram, speaker_embeddings)
         waveform = waveform.squeeze(1)
         sequence_lengths = predicted_lengths * np.prod(self.config.upsample_rates)
@@ -1403,6 +1429,7 @@ class VitsModel(VitsPreTrainedModel):
             spectrogram=spectrogram,
             hidden_states=text_encoder_output.hidden_states,
             attentions=text_encoder_output.attentions,
+            inference_cache=inference_cache,
         )
 
 
